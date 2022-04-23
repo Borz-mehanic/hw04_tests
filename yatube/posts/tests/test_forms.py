@@ -1,174 +1,155 @@
 import shutil
 import tempfile
+from http import HTTPStatus
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client, TestCase, override_settings
+from django.test import Client, TestCase
 from django.urls import reverse
 
-from ..forms import PostForm
-from ..models import Group, Post
+from posts.forms import PostForm
+from posts.models import Comment, Group, Post, User
 
-User = get_user_model()
-
-# Создаем временную папку для медиа-файлов;
-# на момент теста медиа папка будет переопределена
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 
-# Для сохранения media-файлов в тестах будет использоваться
-# временная папка TEMP_MEDIA_ROOT, а потом мы ее удалим
-@override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
-class PostCreateFormTests(TestCase):
+class PostCreateFormTest(TestCase):
+    """Класс тестирования постов."""
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Создаем запись в базе данных для проверки сушествующего slug
-        cls.user = User.objects.create_user(username='bashka')
+        cls.user = User.objects.create_user(username='smeo')
+        cls.group = Group.objects.create(title='test_group',
+                                         slug='test_slug',
+                                         description='test_descripton')
+        cls.post = Post.objects.create(author=cls.user,
+                                       group=cls.group,
+                                       text='Text_3'
+                                       )
+        cls.post_edit = Post.objects.create(author=cls.user,
+                                            group=cls.group,
+                                            text='Edit Text',
+                                            )
+        cls.form = PostForm()
 
-        cls.group = Group.objects.create(
-            title='Тестовый заголовок',
-            description='Тестовое описание',
-            slug='test-slug',
+        cls.small_gif = (
+            b'\x47\x49\x46\x38\x39\x61\x01\x00'
+            b'\x01\x00\x00\x00\x00\x21\xf9\x04'
+            b'\x01\x0a\x00\x01\x00\x2c\x00\x00'
+            b'\x00\x00\x01\x00\x01\x00\x00\x02'
+            b'\x02\x4c\x01\x00\x3b'
         )
 
-        cls.post = Post.objects.create(
-            author=cls.user,
-            text='тестовый текст',
-            group=cls.group,
-        )
-        cls.post_2 = Post.objects.create(
-            author=cls.user,
-            text='тестовый текст другого поста',
-            group=cls.group
-        )
-        small_gif = (
-            b'\x47\x49\x46\x38\x39\x61\x02\x00'
-            b'\x01\x00\x80\x00\x00\x00\x00\x00'
-            b'\xFF\xFF\xFF\x21\xF9\x04\x00\x00'
-            b'\x00\x00\x00\x2C\x00\x00\x00\x00'
-            b'\x02\x00\x01\x00\x00\x02\x02\x0C'
-            b'\x0A\x00\x3B'
-        )
         cls.uploaded = SimpleUploadedFile(
             name='small.gif',
-            content=small_gif,
+            content=cls.small_gif,
             content_type='image/gif'
         )
-        cls.form = PostForm()
 
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
+        shutil.rmtree(
+            TEMP_MEDIA_ROOT,
+            ignore_errors=True)
 
     def setUp(self):
-        # Создаем неавторизованный клиент
+        self.guest_client = Client()
         self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
-        self.form_data = {
-            'text': self.post_2.text,
-            'group': self.group.id
-        }
+        self.authorized_client.force_login(user=self.user)
 
-    def form_field(self, last_post):
-        # Проверка полей формы
-        last_post = Post.objects.order_by("id").last()
-        form_list = {
-            'text': last_post.text,
-            'group': last_post.group.id,
-        }
-        self.assertEqual(form_list['text'], last_post.text)
-        self.assertEqual(form_list['group'], last_post.group.id)
-
-    def test_create_post(self):
-        """Валидная форма создает запись в Post."""
-        posts_count = Post.objects.count()
-        response_auth = self.authorized_client.post(
-            reverse('posts:post_create'),
-            data=self.form_data,
-            follow=True
-        )
-        # Проверка переадресации после создания поста
-        self.assertRedirects(
-            response_auth,
-            reverse('posts:profile', kwargs={
-                    'username': self.user}))
-        self.assertEqual(Post.objects.count(), posts_count + 1)
-        # Проверяем, что создалась запись с заданным слагом
-        self.assertTrue(
-            Post.objects.filter(
-                author=self.post.author,
-                text=self.post.text,
-                group=self.post.group
-            ).exists()
-        )
-        self.form_field(response_auth)
-
-    def test_blank_image(self):
-        """Если пользователь загрузит не картинку, возвращаем ошибку"""
-        blank_gif = ('')
-
-        empty_image = SimpleUploadedFile(
-            name='blank_gif.gif',
-            content=blank_gif,
-            content_type='image/gif')
-        form_data = {
-            'text': self.post_2.text,
-            'group': self.group.id,
-            'image': empty_image,
+    def test_create_form_post(self):
+        """Проверка создания нового поста с добавлением img."""
+        post_count = Post.objects.count()
+        form = {
+            'text': self.post.text,
+            'group': self.group.pk,
+            'image': self.uploaded,
         }
         response = self.authorized_client.post(
             reverse('posts:post_create'),
-            data=form_data,
-            follow=True)
-        self.assertFormError(
-            response,
-            'form',
-            'image',
-            'Отправленный файл пуст.')
-
-    def test_edit_post(self):
-        """Валидная форма редактирует запись в Post."""
-        posts_count = Post.objects.count()
-        response_auth = self.authorized_client.post(
-            reverse(
-                'posts:post_edit',
-                kwargs={'post_id': self.post.id}),
-            data=self.form_data,
+            data=form,
             follow=True
         )
-        # Проверка переадресации после создания поста
+        self.assertTrue(
+            Post.objects.filter(
+                text='Текст',
+                image='posts/small.gif',
+                group=self.group.pk,
+            ).exists()
+        )
+        print(Post.objects.filter(
+            text='Текст', group=self.group.pk
+        ).first().image)
         self.assertRedirects(
-            response_auth,
-            reverse('posts:post_detail', kwargs={
-                    'post_id': self.post.id}))
-        self.assertEqual(Post.objects.count(), posts_count)
-        # Проверка полей формы
-        for value, expected in self.form_data.items():
-            with self.subTest(value=value):
-                response_auth = self.authorized_client.get(value)
-                self.assertEqual(self.form_data[value], expected)
-        self.form_field(response_auth)
+            response,
+            reverse('posts:profile', kwargs={'username': self.user.username}))
 
-    def test_title_help_text(self):
-        """Проверяем help_text"""
-        title_help_text = PostCreateFormTests.form.fields['text'].help_text
-        title_help_group = PostCreateFormTests.form.fields['group'].help_text
-        self.assertEqual(title_help_text, 'Тут должен быть текст поста')
-        self.assertEqual(title_help_group, 'Укажите группу')
+        last_post = Post.objects.first()
+        self.assertEqual(Post.objects.count(), post_count + 1)
+        self.assertEqual(last_post.text, form['text'])
+        self.assertEqual(last_post.group.pk, form['group'])
+        self.assertEqual(last_post.author, self.user)
+        self.assertEqual(last_post.image.name, 'posts/small.gif')
 
-    def test_image_coun_post(self):
-        """Проверяем, что при отправке поста с картинкой через форму PostForm
-           создаётся запись в базе данных. """
-        posts_count_before = Post.objects.count()
-        self.post_image = Post.objects.create(
-            author=self.user,
-            text='тестовый текст другого поста',
-            group=self.group,
-            image=self.uploaded)
-        posts_count_after = Post.objects.count()
-        self.assertEqual(posts_count_before + 1, posts_count_after)
-        Post.objects.get(id=self.post_image.id).delete()
-        self.form_field(self.post_image)
+    def test_eddit_post_success(self):
+        """Проверка редактирования поста."""
+        post_count = Post.objects.count()
+        form = {
+            'text': self.post_edit.text,
+            'group': self.post_edit.group.pk,
+        }
+        response = self.authorized_client.post(reverse(
+            'posts:post_edit', kwargs={'post_id': self.post.id}), data=form)
+        self.assertEqual(response.status_code, HTTPStatus.FOUND)
+        self.post.refresh_from_db()
+        self.assertRedirects(
+            response,
+            reverse('posts:post_detail', kwargs={'post_id': self.post.id}))
+        last_post = Post.objects.first()
+        self.assertEqual(Post.objects.count(), post_count)
+        self.assertEqual(last_post.text, form['text'])
+        self.assertEqual(last_post.group.pk, form['group'])
+        self.assertEqual(last_post.author, self.user)
+
+    def test_form_create_post_unauthorized_user(self):
+        """
+        Проверяем, что неавторизованный пользователь не может
+        отправить запрос на создание поста
+        """
+        post_count = Post.objects.count()
+        form = {
+            'text': 'Text_3',
+            'group': self.group.id,
+        }
+        response = self.guest_client.post(reverse('posts:post_create'),
+                                          data=form,
+                                          follow=True)
+        self.assertRedirects(response,
+                             reverse('users:login') + '?next=/create/')
+        self.assertEqual(Post.objects.count(), post_count)
+
+    def test_add_comment(self):
+        """Авторизованный пользователь может комментировать посты."""
+        com_count = Comment.objects.count()
+        print(com_count)
+        form = {
+            'post': self.post_edit,
+            'author': self.post_edit.author,
+            'text': self.post_edit.text,
+        }
+        response = self.authorized_client.post(
+            reverse('posts:add_comment', kwargs={'post_id': self.post.id}),
+            data=form,
+            follow=True
+        )
+        self.assertRedirects(
+            response,
+            reverse('posts:post_detail', kwargs={'post_id': self.post.id}))
+        comment = Comment.objects.first()
+        print(comment)
+        self.assertEqual(Comment.objects.count(), com_count + 1)
+        self.assertEqual(comment.post, self.post)
+        self.assertEqual(comment.text, form['text'])
+        self.assertEqual(comment.author, self.post.author)
