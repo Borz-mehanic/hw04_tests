@@ -10,7 +10,7 @@ from posts.models import Group, Post, User
 
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
-NEW_POST = reverse('posts:create')
+NEW_POST = reverse('posts:post_create')
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
