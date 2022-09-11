@@ -56,7 +56,7 @@ class PostModelTest(TestCase):
                 self.assertEqual(
                     post._meta.get_field(field).help_text, expected_value
                 )
-        
+
     def test_models_have_correct_object_names(self):
         """Проверяем, что у моделей корректно работает __str__."""
         p1 = PostModelTest.post.__str__()
