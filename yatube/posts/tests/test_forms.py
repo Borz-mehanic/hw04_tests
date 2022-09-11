@@ -14,8 +14,7 @@ NEW_POST = reverse('posts:post_create')
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
-class FormsTests(TestCase):
-
+class TasCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -38,12 +37,15 @@ class FormsTests(TestCase):
         cls.POST_URL = reverse(
             'posts:post_detail',
             args=[cls.post.id])
-        cls.POST_EDIT_URL = reverse(
-            'posts:post_edit',
-            args=[cls.post.id])
         cls.PROFILE_URL = reverse(
             'posts:profile',
             args=[cls.user.username]
+        )
+        cls.POST_DETAIL_URL = reverse(
+            'posts:post_detail', kwargs={'post_id': cls.post.id}
+        )
+        cls.POST_EDIT_URL = reverse(
+            'posts:post_edit', kwargs={'post_id': cls.post.id}
         )
 
     @classmethod
@@ -52,6 +54,7 @@ class FormsTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
+        self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
 
@@ -90,16 +93,23 @@ class FormsTests(TestCase):
                     self.assertIsInstance(form_field, expected)
 
     def test_edit_post(self):
+        """Валидная форма редактирует Пост в БД."""
         form_data = {
-            'text': 'hi!',
-            'group': self.group2.id,
+            'text': 'text_test357',
+            'group': f'{self.post.group.id}',
         }
+        # Отправляем POST-запрос
         response = self.authorized_client.post(
             self.POST_EDIT_URL,
-            data=form_data, follow=True
+            data=form_data,
+            follow=True
         )
-        post = response.context['post']
-        self.assertEqual(post.text, form_data['text'])
-        self.assertEqual(form_data['group'], post.group.id)
-        self.assertEqual(post.author, self.post.author)
-        self.assertRedirects(response, self.POST_URL)
+        # Проверяем, сработал ли редирект
+        self.assertRedirects(response, (self.POST_DETAIL_URL))
+        # Проверяем, что пост отредактирован
+        self.assertTrue(
+            Post.objects.filter(
+                text='text_test357',
+                group=self.group.id
+            ).exists()
+        )

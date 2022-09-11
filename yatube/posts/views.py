@@ -100,20 +100,39 @@ def post_create(
 
 
 @login_required
-def post_edit(request: django.http.HttpRequest,
-              post_id: int) -> django.http.HttpResponse:
-    """This view edits the post by its id and saves changes in database."""
-    post = get_object_or_404(Post, pk=post_id)
-    if post.author != request.user:
-        return redirect('posts:post_detail', post_id)
-    form = PostForm(request.POST or None, instance=post)
-    if form.is_valid():
-        post = form.save(commit=False)
-        post.save()
-        return redirect('posts:post_detail', post_id)
-    context = {
-        'post': post,
-        'form': form,
-        'is_edit': True,
-    }
+def post_edit(request, post_id):
+    post_list = Post.objects.all()
+    post = get_object_or_404(Post, id=post_id, author=request.user)
+    form = PostForm(
+        request.POST,
+        files=request.FILES or None,
+        instance=post
+    )
+    if request.method == 'GET':
+        return render(request, 'posts/create_post.html',
+                      {'post_list': post_list,
+                       'post': post,
+                       'is_edit': True,
+                       'form': form,
+                       'post_id': post_id,
+                       })
+    form = PostForm(
+        request.POST,
+        files=request.FILES or None,
+        instance=post
+    )
+    if request.method == 'POST':
+        form = PostForm(
+            request.POST,
+            files=request.FILES or None,
+            instance=post
+        )
+        if form.is_valid():
+            form.save()
+        return redirect('posts:post_detail', post_id=post.pk)
+    context = {'post_id': post_id,
+               'form': form,
+               'post': post,
+               'is_edit': True
+               }
     return render(request, 'posts/create_post.html', context)
