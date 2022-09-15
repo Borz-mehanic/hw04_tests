@@ -5,9 +5,18 @@ User = get_user_model()
 
 
 class Group(models.Model):
-    title = models.CharField(max_length=200)
-    slug = models.SlugField(unique=True)
-    description = models.TextField()
+    title = models.CharField(
+        verbose_name='Заголовок',
+        max_length=200,
+        help_text='Дайте короткое название задаче'
+    )
+    slug = models.SlugField(
+        verbose_name='Адрес для страницы с задаче',
+        unique=True
+    )
+    description = models.TextField(
+        verbose_name='Описание'
+    )
 
     def __str__(self) -> str:
         return self.title
@@ -25,6 +34,7 @@ class Post(models.Model):
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
+        related_name='posts',
         verbose_name='Автор'
     )
     group = models.ForeignKey(
@@ -38,7 +48,7 @@ class Post(models.Model):
     )
 
     def __str__(self) -> str:
-        return self.text
+        return self.text[:15]
 
     class Meta:
         ordering = ['-pub_date']

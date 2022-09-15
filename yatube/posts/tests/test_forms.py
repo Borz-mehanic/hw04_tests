@@ -59,6 +59,7 @@ class TasCreateFormTests(TestCase):
         self.authorized_client.force_login(self.user)
 
     def test_post_create(self):
+        """Валидная форма создает пост в БД"""
         posts = Post.objects.all()
         posts.delete()
         data = {
@@ -78,6 +79,7 @@ class TasCreateFormTests(TestCase):
         self.assertRedirects(response, self.PROFILE_URL)
 
     def test_new_post_show_correct_context(self):
+        """URL-адрес использует соотвествующий шаблон"""
         urls = [
             NEW_POST,
             self.POST_EDIT_URL
