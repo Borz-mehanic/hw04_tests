@@ -102,40 +102,59 @@ class PaginatorViewsTest(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = User.objects.create_user(username='Test')
+        cls.author = User.objects.create_user(username='TestAuthor')
+        cls.auth_user = User.objects.create_user(username='TestAuthUser')
         cls.group = Group.objects.create(
-            title='Тестовый заголовок',
+            title='Тестовая группа',
             slug='test-slug',
-            description='тестовое описание',
+            description='Тестовое описание',
         )
-        for i in range(13):
-            cls.post = Post.objects.create(
-                text='Тестовый текст поста',
-                author=cls.user,
+        cls.posts = [
+            Post(
+                author=cls.author,
+                text=f'Тестовый пост {i}',
                 group=cls.group,
             )
-
-    def setUp(self):
-        """Creates a user"""
-        self.authorized_client = Client()
-        self.authorized_client.force_login(self.user)
+            for i in range(13)
+        ]
+        Post.objects.bulk_create(cls.posts)
 
     def test_first_page_contains_ten_records(self):
-        urls_names = {
-            reverse('posts:index'),
-            reverse('posts:group_list', kwargs={'slug': self.group.slug}),
-            reverse('posts:profile', kwargs={'username': self.user.username})
-        }
-        for test_url in urls_names:
-            response = self.authorized_client.get(test_url)
-            self.assertEqual(len(response.context.get('page_obj')), 10)
+        """Количество постов на страницах index, group_list, profile
+        равно 10.
+        """
+        urls = (
+            reverse(
+                'posts:index'
+            ),
+            reverse(
+                'posts:group_list', kwargs={'slug': self.group.slug}
+            ),
+            reverse(
+                'posts:profile', kwargs={'username': self.author.username}
+            ),
+        )
+        for url in urls:
+            response = self.client.get(url)
+            amount_posts = len(response.context.get('page_obj').object_list)
+            self.assertEqual(amount_posts, 10)
 
-    def test_second_page_contains_ten_records(self):
-        urls_names = {
-            reverse('posts:index'),
-            reverse('posts:group_list', kwargs={'slug': self.group.slug}),
-            reverse('posts:profile', kwargs={'username': self.user.username})
-        }
-        for test_url in urls_names:
-            response = self.authorized_client.get(test_url + '?page=2')
-            self.assertEqual(len(response.context.get('page_obj')), 3)
+    def test_second_page_contains_three_records(self):
+        """Количество постов на страницах index, group_list, profile
+        равно 3.
+        """
+        urls = (
+            reverse(
+                'posts:index'
+            ) + '?page=2',
+            reverse(
+                'posts:group_list', kwargs={'slug': self.group.slug}
+            ) + '?page=2',
+            reverse(
+                'posts:profile', kwargs={'username': self.author.username}
+            ) + '?page=2',
+        )
+        for url in urls:
+            response = self.client.get(url)
+            amount_posts = len(response.context.get('page_obj').object_list)
+            self.assertEqual(amount_posts, 3)
