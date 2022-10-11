@@ -16,7 +16,7 @@ NEW_POST = reverse('posts:post_create')
 
 
 @override_settings(MEDIA_ROOT=TEMP_MEDIA_ROOT)
-class TasCreateFormTests(TestCase):
+class PostCreateFormTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
