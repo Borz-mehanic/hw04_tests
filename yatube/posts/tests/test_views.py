@@ -69,6 +69,7 @@ class PostPagesTests(TestCase):
                 'pub_date': forms.fields.DateTimeField,
                 'author': forms.fields.ForeignKey,
                 'group': forms.fields.ForeignKey,
+                'image': forms.fields.ImageField
             }
             for value, expected in form_fields.items():
                 with self.subTest(value=value):

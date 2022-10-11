@@ -29,7 +29,8 @@ class Post(models.Model):
     )
     pub_date = models.DateTimeField(
         'Дата публикации',
-        auto_now_add=True
+        auto_now_add=True,
+        db_index=True
     )
     author = models.ForeignKey(
         User,
@@ -46,9 +47,64 @@ class Post(models.Model):
         verbose_name='Группа',
         help_text='Группа, к которой будет отноститься пост'
     )
+    image = models.ImageField(
+        'Картинка',
+        upload_to='posts/',
+        blank=True
+    )
 
     def __str__(self) -> str:
         return self.text[:15]
 
     class Meta:
-        ordering = ['-pub_date']
+        ordering = ('-pub_date',)
+        verbose_name = 'Пост'
+        verbose_name_plural = 'Посты'
+
+
+class Comment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        verbose_name='Автор',
+        related_name='comments'
+    )
+    text = models.TextField()
+    create = models.DateTimeField(
+        'Дата публикации',
+        auto_now_add=True
+    )
+
+    def __str__(self):
+        return self.text[:15]
+
+    class Meta:
+        ordering = ('-create',)
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='follower'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='following'
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['author', 'user'],
+                name='unique_follower')
+        ]
+
+    def __str__(self):
+        return f"{self.author}, follower:{self.user}"

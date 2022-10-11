@@ -78,3 +78,7 @@ class PostURLTest(TestCase):
             f'/posts/{post_id}/edit/'
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
+
+    def test_error_page(self):
+        response = self.guest_client.get('/nonexist-page/')
+        self.assertEqual(response.status_code, 404)
